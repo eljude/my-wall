@@ -408,7 +408,7 @@ export default function Wall() {
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <strong className="font-semibold">Preview mode.</strong> Add{" "}
                 <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-                <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to
+                <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code> to
                 enable posting. The posts below are samples.
               </div>
             )}

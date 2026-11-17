@@ -21,7 +21,7 @@ Visitors type a message, press **Share**, and the post is saved in Supabase. The
 2. Copy `.env.example` to `.env.local` and fill in the values from **Project Settings → API**:
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
    ```
 3. Run it:
    ```bash
@@ -31,4 +31,4 @@ Visitors type a message, press **Share**, and the post is saved in Supabase. The
 
 ## Deploy
 
-Import the GitHub repo into Vercel, add the two `NEXT_PUBLIC_SUPABASE_*` environment variables, and deploy. Submit the production URL (`https://<project>.vercel.app`), not a preview URL.
+Import the GitHub repo into Vercel, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and deploy. Submit the production URL (`https://<project>.vercel.app`), not a preview URL.
