@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-post-in: post-in 0.35s ease-out;
+
+  @keyframes post-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: #fff;
+  color: #333;
+  font-family: "lucida grande", tahoma, verdana, arial, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
