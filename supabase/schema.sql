@@ -13,6 +13,7 @@ create table if not exists public.posts (
 );
 
 -- 2. Row Level Security: anyone may read and add posts (no login needed)
+grant select, insert on public.posts to anon, authenticated;
 alter table public.posts enable row level security;
 
 drop policy if exists "Anyone can read posts" on public.posts;
