@@ -12,36 +12,109 @@ import {
 const AUTHOR_NAME = "Guest";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
+// Shown only when Supabase keys are missing, so the layout can be previewed locally.
+const SAMPLE_POSTS: Post[] = [
+  {
+    id: "sample-1",
+    user_id: null,
+    body: "Just got a new digital camera, expect way too many photos of my cat 📷",
+    image_url: null,
+    created_at: new Date(Date.UTC(2026, 0, 1, 12, 0)).toISOString(),
+  },
+  {
+    id: "sample-2",
+    user_id: null,
+    body: "is listening to the new Coldplay album on repeat",
+    image_url: null,
+    created_at: new Date(Date.UTC(2026, 0, 1, 10, 30)).toISOString(),
+  },
+  {
+    id: "sample-3",
+    user_id: null,
+    body: "Happy birthday!! Hope it's a great one 🎉",
+    image_url: null,
+    created_at: new Date(Date.UTC(2025, 11, 30, 9, 0)).toISOString(),
+  },
+];
+
+const AVATAR_GRADIENTS = [
+  "from-sky-400 to-indigo-500",
+  "from-rose-400 to-orange-400",
+  "from-emerald-400 to-teal-500",
+  "from-violet-400 to-fuchsia-500",
+  "from-amber-400 to-pink-500",
+  "from-cyan-400 to-blue-500",
+];
+
+function gradientFor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_GRADIENTS[h % AVATAR_GRADIENTS.length];
+}
+
 function timeAgo(iso: string, now: number) {
+  if (!now) return "";
   const seconds = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000));
   if (seconds < 10) return "just now";
-  if (seconds < 60) return `${seconds} seconds ago`;
+  if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return minutes === 1 ? "about a minute ago" : `${minutes} minutes ago`;
+  if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return hours === 1 ? "about an hour ago" : `${hours} hours ago`;
+  if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  if (days < 7) return days === 1 ? "yesterday" : `${days} days ago`;
+  if (days < 7) return days === 1 ? "yesterday" : `${days}d ago`;
   return new Date(iso).toLocaleDateString(undefined, {
-    month: "long",
+    month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
 
-function Avatar({ size = 50 }: { size?: number }) {
+function Avatar({ seed, size = "h-11 w-11" }: { seed: string; size?: string }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 50 50"
+    <div
+      className={`${size} shrink-0 overflow-hidden rounded-full bg-gradient-to-br ${gradientFor(seed)} ring-2 ring-white`}
       aria-hidden="true"
-      className="shrink-0 border border-[#ccc] bg-[#f7f7f7]"
     >
-      <rect width="50" height="50" fill="#d8dfea" />
-      <circle cx="25" cy="19" r="9" fill="#fff" />
-      <path d="M8 50c0-11 7.6-18 17-18s17 7 17 18z" fill="#fff" />
-    </svg>
+      <svg viewBox="0 0 40 40" className="h-full w-full">
+        <circle cx="20" cy="16" r="7" fill="white" fillOpacity="0.9" />
+        <path d="M6 40c0-9 6.3-14.5 14-14.5S34 31 34 40z" fill="white" fillOpacity="0.9" />
+      </svg>
+    </div>
+  );
+}
+
+function CharRing({ count }: { count: number }) {
+  const remaining = MAX_LENGTH - count;
+  const pct = Math.min(count / MAX_LENGTH, 1);
+  const r = 9;
+  const c = 2 * Math.PI * r;
+  const color = remaining < 0 ? "#e11d48" : remaining <= 20 ? "#f59e0b" : "#4f46e5";
+  return (
+    <div className="flex items-center gap-2" aria-live="polite">
+      <svg width="24" height="24" viewBox="0 0 24 24" className="-rotate-90">
+        <circle cx="12" cy="12" r={r} fill="none" stroke="#e2e8f0" strokeWidth="2.5" />
+        <circle
+          cx="12"
+          cy="12"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - pct)}
+          className="transition-[stroke-dashoffset] duration-200"
+        />
+      </svg>
+      <span
+        className={`text-xs tabular-nums ${
+          remaining <= 20 ? "font-semibold text-amber-600" : "text-slate-400"
+        }`}
+      >
+        {remaining}
+      </span>
+    </div>
   );
 }
 
@@ -53,7 +126,7 @@ function mergePost(list: Post[], post: Post) {
 }
 
 export default function Wall() {
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<Post[]>(isSupabaseConfigured ? [] : SAMPLE_POSTS);
   const [message, setMessage] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -64,10 +137,12 @@ export default function Wall() {
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const [now, setNow] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
+  const textarea = useRef<HTMLTextAreaElement>(null);
 
   const trimmed = message.trim();
   const remaining = MAX_LENGTH - message.length;
-  const canShare = (trimmed.length > 0 || image !== null) && remaining >= 0 && !sharing;
+  const canShare =
+    isSupabaseConfigured && (trimmed.length > 0 || image !== null) && remaining >= 0 && !sharing;
 
   const markFresh = useCallback((id: string) => {
     setFreshIds((s) => new Set(s).add(id));
@@ -121,9 +196,21 @@ export default function Wall() {
 
   // Keep "x minutes ago" labels current
   useEffect(() => {
+    const first = setTimeout(() => setNow(Date.now()), 0);
     const t = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(t);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
   }, []);
+
+  // Grow the textarea with its content
+  useEffect(() => {
+    const el = textarea.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [message]);
 
   // Release object URLs for photo previews
   useEffect(() => {
@@ -192,121 +279,200 @@ export default function Wall() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-[13px] text-[#333]">
-      {/* Top blue bar */}
-      <header className="bg-[#3b5998] border-b border-[#133783]">
-        <div className="mx-auto flex h-10 max-w-[980px] items-center justify-between px-4">
-          <span className="text-[22px] font-bold tracking-tight text-white">
-            thewall
-          </span>
-          <nav className="hidden gap-5 text-[12px] font-bold text-white sm:flex">
-            <span>Home</span>
-            <span>Profile</span>
-            <span>Friends</span>
-            <span>Inbox</span>
-          </nav>
+    <div className="min-h-screen bg-[#f3f4f8] text-slate-800">
+      {/* Soft background glow */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 top-0 h-[480px] bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.12),transparent_70%)]"
+      />
+
+      {/* Top bar */}
+      <header className="sticky top-0 z-20 border-b border-white/60 bg-white/70 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-[#3b5998] to-indigo-500 text-sm font-black text-white shadow-md shadow-indigo-500/30">
+              w
+            </span>
+            <span className="text-lg font-bold tracking-tight text-slate-900">thewall</span>
+          </div>
+          {isSupabaseConfigured && (
+            <span className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 shadow-sm ring-1 ring-slate-200">
+              <span className="relative flex h-2 w-2">
+                {live && (
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                )}
+                <span
+                  className={`relative inline-flex h-2 w-2 rounded-full ${
+                    live ? "bg-emerald-500" : "bg-slate-300"
+                  }`}
+                />
+              </span>
+              {live ? "Live" : "Connecting"}
+            </span>
+          )}
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-[980px] flex-col gap-6 px-4 py-5 md:flex-row">
-        {/* Left profile column */}
-        <aside className="md:w-[200px] md:shrink-0">
-          <div className="flex gap-4 md:block">
-            <div className="w-[120px] md:w-[200px]">
-              <svg viewBox="0 0 200 240" className="w-full border border-[#ccc]" aria-label="Profile picture">
-                <rect width="200" height="240" fill="#d8dfea" />
-                <circle cx="100" cy="88" r="40" fill="#fff" />
-                <path d="M28 240c0-48 32-80 72-80s72 32 72 80z" fill="#fff" />
+      <main className="relative mx-auto max-w-5xl px-4 pb-16 pt-6">
+        {/* Cover + profile */}
+        <section className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200/70">
+          <div className="relative h-36 bg-gradient-to-br from-[#3b5998] via-indigo-500 to-sky-400 sm:h-44">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_120%,rgba(255,255,255,0.25),transparent_45%),radial-gradient(circle_at_85%_-10%,rgba(255,255,255,0.2),transparent_40%)]" />
+          </div>
+          <div className="flex flex-col gap-4 px-6 pb-5 sm:flex-row sm:items-end">
+            <div className="-mt-12 h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-sky-300 to-indigo-500 shadow-lg ring-4 ring-white sm:h-28 sm:w-28">
+              <svg viewBox="0 0 40 40" className="h-full w-full">
+                <circle cx="20" cy="15.5" r="7" fill="white" fillOpacity="0.92" />
+                <path d="M5 40c0-9.5 6.7-15 15-15s15 5.5 15 15z" fill="white" fillOpacity="0.92" />
               </svg>
             </div>
-            <div className="md:mt-3">
-              <h1 className="text-[18px] font-bold text-[#3b5998] md:hidden">The Wall</h1>
-              <ul className="mt-1 space-y-1 text-[11px] text-[#3b5998] md:mt-0">
-                <li>View Photos</li>
-                <li>Send Message</li>
-                <li>Poke!</li>
-              </ul>
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">The Wall</h1>
+              <p className="text-sm text-slate-500">
+                Leave a note. Everyone sees it instantly — just like 2008.
+              </p>
+            </div>
+            <div className="flex gap-6 text-center">
+              <div>
+                <div className="text-lg font-bold text-slate-900 tabular-nums">
+                  {loading ? "–" : posts.length}
+                </div>
+                <div className="text-xs text-slate-500">Posts</div>
+              </div>
+              <div>
+                <div className="text-lg font-bold text-slate-900">280</div>
+                <div className="text-xs text-slate-500">Char limit</div>
+              </div>
             </div>
           </div>
-
-          <section className="mt-4 hidden md:block">
-            <h2 className="border-t border-[#3b5998] bg-[#d8dfea] px-2 py-1 text-[11px] font-bold text-[#3b5998]">
-              Information
-            </h2>
-            <dl className="px-2 py-2 text-[11px]">
-              <dt className="text-[#808080]">Networks:</dt>
-              <dd className="mb-2">The Internet</dd>
-              <dt className="text-[#808080]">Built with:</dt>
-              <dd>Next.js, React &amp; Supabase</dd>
-            </dl>
-          </section>
-        </aside>
-
-        {/* Wall column */}
-        <section className="min-w-0 flex-1">
-          <h1 className="mb-3 hidden text-[20px] font-bold text-[#333] md:block">The Wall</h1>
-
-          <div className="flex border-b border-[#ccc] text-[12px]">
-            <span className="-mb-px border border-b-white border-[#ccc] bg-white px-3 py-1.5 font-bold text-[#333]">
+          <nav className="flex gap-1 border-t border-slate-100 px-4 text-sm">
+            <span className="border-b-2 border-indigo-500 px-3 py-3 font-semibold text-indigo-600">
               Wall
             </span>
-            <span className="px-3 py-1.5 text-[#3b5998]">Info</span>
-            <span className="px-3 py-1.5 text-[#3b5998]">Photos</span>
-          </div>
+            <span className="px-3 py-3 text-slate-400">Info</span>
+            <span className="px-3 py-3 text-slate-400">Photos</span>
+          </nav>
+        </section>
 
-          {!isSupabaseConfigured && (
-            <p className="mt-3 border border-[#e2c822] bg-[#fff9d7] p-3 text-[12px]">
-              Supabase isn&apos;t configured. Add <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-              <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to your environment.
+        <div className="mt-6 grid gap-6 md:grid-cols-[260px_1fr]">
+          {/* Sidebar */}
+          <aside className="order-2 space-y-4 md:order-1">
+            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+              <h2 className="text-sm font-semibold text-slate-900">About</h2>
+              <dl className="mt-3 space-y-3 text-sm">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-50 text-indigo-500">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
+                    </svg>
+                  </span>
+                  <div>
+                    <dt className="text-xs text-slate-400">Network</dt>
+                    <dd className="text-slate-700">The Internet</dd>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-sky-50 text-sky-500">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <path d="m16 18 6-6-6-6M8 6l-6 6 6 6" />
+                    </svg>
+                  </span>
+                  <div>
+                    <dt className="text-xs text-slate-400">Built with</dt>
+                    <dd className="text-slate-700">Next.js · React · Supabase</dd>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-500">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <path d="M13 2 3 14h9l-1 8 10-12h-9z" />
+                    </svg>
+                  </span>
+                  <div>
+                    <dt className="text-xs text-slate-400">Updates</dt>
+                    <dd className="text-slate-700">Realtime, no refresh</dd>
+                  </div>
+                </div>
+              </dl>
+            </div>
+            <p className="px-2 text-xs text-slate-400">
+              Tip: press <kbd className="rounded border border-slate-300 bg-white px-1 font-sans">Ctrl</kbd>{" "}
+              + <kbd className="rounded border border-slate-300 bg-white px-1 font-sans">Enter</kbd> to share.
             </p>
-          )}
+          </aside>
 
-          {/* Composer */}
-          <form onSubmit={handleShare} className="mt-3 border border-[#bdc7d8] bg-[#f2f2f2] p-2.5">
-            <label htmlFor="message" className="sr-only">
-              Write something
-            </label>
-            <textarea
-              id="message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleShare();
-              }}
-              placeholder="What's on your mind?"
-              maxLength={MAX_LENGTH}
-              rows={3}
-              disabled={!isSupabaseConfigured}
-              className="block w-full resize-none border border-[#bdc7d8] bg-white p-2 text-[13px] leading-snug outline-none focus:border-[#3b5998]"
-            />
-
-            {preview && (
-              <div className="relative mt-2 inline-block">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={preview} alt="Selected photo" className="max-h-40 border border-[#ccc]" />
-                <button
-                  type="button"
-                  onClick={clearImage}
-                  aria-label="Remove photo"
-                  className="absolute right-1 top-1 h-5 w-5 bg-[#333]/80 text-[12px] leading-5 text-white hover:bg-[#333]"
-                >
-                  ×
-                </button>
+          {/* Wall column */}
+          <section className="order-1 min-w-0 space-y-4 md:order-2">
+            {!isSupabaseConfigured && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <strong className="font-semibold">Preview mode.</strong> Add{" "}
+                <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
+                <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to
+                enable posting. The posts below are samples.
               </div>
             )}
 
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
+            {/* Composer */}
+            <form
+              onSubmit={handleShare}
+              className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 transition focus-within:shadow-md focus-within:ring-indigo-300"
+            >
+              <div className="flex gap-3">
+                <Avatar seed="me" />
+                <div className="min-w-0 flex-1">
+                  <label htmlFor="message" className="sr-only">
+                    Write something
+                  </label>
+                  <textarea
+                    ref={textarea}
+                    id="message"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleShare();
+                    }}
+                    placeholder="What's on your mind?"
+                    maxLength={MAX_LENGTH}
+                    rows={2}
+                    disabled={!isSupabaseConfigured}
+                    className="block max-h-60 w-full resize-none bg-transparent pt-2.5 text-[15px] leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+                  />
+
+                  {preview && (
+                    <div className="relative mt-3 inline-block animate-post-in">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={preview}
+                        alt="Selected photo"
+                        className="max-h-56 rounded-xl ring-1 ring-slate-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={clearImage}
+                        aria-label="Remove photo"
+                        className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-slate-900/70 text-white backdrop-blur transition hover:bg-slate-900"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                          <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
                 <button
                   type="button"
                   onClick={() => fileInput.current?.click()}
                   disabled={!isSupabaseConfigured || sharing}
-                  className="flex items-center gap-1 text-[11px] font-bold text-[#3b5998] hover:underline disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-600 disabled:pointer-events-none disabled:opacity-40"
                 >
-                  <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true">
-                    <rect x="0.5" y="2.5" width="13" height="9" fill="none" stroke="currentColor" />
-                    <circle cx="7" cy="7" r="2.5" fill="none" stroke="currentColor" />
-                    <rect x="4" y="0.5" width="6" height="2" fill="currentColor" />
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500" aria-hidden="true">
+                    <rect x="3" y="3" width="18" height="18" rx="3" />
+                    <circle cx="9" cy="9" r="2" />
+                    <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
                   </svg>
                   Photo
                 </button>
@@ -317,108 +483,124 @@ export default function Wall() {
                   onChange={pickImage}
                   className="hidden"
                 />
-                <span
-                  className={`text-[11px] tabular-nums ${
-                    remaining <= 20 ? "font-bold text-[#c00]" : "text-[#808080]"
-                  }`}
-                  aria-live="polite"
-                >
-                  {remaining} characters left
-                </span>
-              </div>
 
-              <button
-                type="submit"
-                disabled={!canShare}
-                className="border border-[#29447e] bg-[#5b74a8] px-4 py-1 text-[12px] font-bold text-white hover:bg-[#4f6aa3] active:bg-[#3b5998] disabled:cursor-not-allowed disabled:border-[#94a2bf] disabled:bg-[#adb9d3]"
-              >
-                {sharing ? "Sharing…" : "Share"}
-              </button>
-            </div>
-          </form>
-
-          {error && (
-            <p role="alert" className="mt-3 border border-[#dd3c10] bg-[#ffebe8] p-2 text-[12px]">
-              {error}
-            </p>
-          )}
-
-          {/* Feed */}
-          <div className="mt-4 flex items-center justify-between border-b border-[#ccc] pb-1">
-            <h2 className="text-[12px] font-bold text-[#333]">
-              Recent posts{posts.length > 0 && ` (${posts.length})`}
-            </h2>
-            {isSupabaseConfigured && (
-              <span className="flex items-center gap-1 text-[11px] text-[#808080]">
-                <span
-                  className={`h-2 w-2 rounded-full ${live ? "bg-[#42b72a]" : "bg-[#ccc]"}`}
-                />
-                {live ? "Live" : "Connecting…"}
-              </span>
-            )}
-          </div>
-
-          {loading ? (
-            <ul aria-busy="true">
-              {[0, 1, 2].map((i) => (
-                <li key={i} className="flex gap-3 border-b border-[#e9e9e9] py-3">
-                  <div className="h-[50px] w-[50px] animate-pulse bg-[#e9e9e9]" />
-                  <div className="flex-1 space-y-2 pt-1">
-                    <div className="h-3 w-24 animate-pulse bg-[#e9e9e9]" />
-                    <div className="h-3 w-3/4 animate-pulse bg-[#e9e9e9]" />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : posts.length === 0 ? (
-            <p className="py-8 text-center text-[12px] text-[#808080]">
-              No posts yet. Be the first to write on the wall!
-            </p>
-          ) : (
-            <ul>
-              {posts.map((post) => (
-                <li
-                  key={post.id}
-                  className={`flex gap-3 border-b border-[#e9e9e9] px-1 py-3 transition-colors duration-1000 ${
-                    freshIds.has(post.id) ? "animate-post-in bg-[#fff9d7]" : "bg-white"
-                  }`}
-                >
-                  <Avatar />
-                  <div className="min-w-0 flex-1">
-                    <p className="leading-snug">
-                      <span className="font-bold text-[#3b5998]">{AUTHOR_NAME}</span>{" "}
-                      {post.body && (
-                        <span className="whitespace-pre-wrap break-words">{post.body}</span>
-                      )}
-                    </p>
-                    {post.image_url && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={post.image_url}
-                        alt="Photo attached to post"
-                        loading="lazy"
-                        className="mt-2 max-h-80 max-w-full border border-[#ccc]"
-                      />
+                <div className="flex items-center gap-3">
+                  {message.length > 0 && <CharRing count={message.length} />}
+                  <button
+                    type="submit"
+                    disabled={!canShare}
+                    className="rounded-full bg-gradient-to-r from-[#3b5998] to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-500/25 transition hover:brightness-110 active:scale-[0.97] disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-300 disabled:shadow-none"
+                  >
+                    {sharing ? (
+                      <span className="flex items-center gap-2">
+                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                        Sharing
+                      </span>
+                    ) : (
+                      "Share"
                     )}
-                    <p className="mt-1 text-[11px] text-[#808080]">
-                      <time dateTime={post.created_at} title={new Date(post.created_at).toLocaleString()}>
-                        {timeAgo(post.created_at, now)}
-                      </time>
-                      {" · "}
-                      <span className="text-[#3b5998]">Comment</span>
-                      {" · "}
-                      <span className="text-[#3b5998]">Like</span>
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            {error && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+              >
+                <span className="mt-px">⚠️</span>
+                <span className="flex-1">{error}</span>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-rose-400 hover:text-rose-600"
+                  aria-label="Dismiss"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* Feed */}
+            {loading ? (
+              <ul aria-busy="true" className="space-y-4">
+                {[0, 1, 2].map((i) => (
+                  <li key={i} className="flex gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+                    <div className="h-11 w-11 animate-pulse rounded-full bg-slate-200" />
+                    <div className="flex-1 space-y-2.5 pt-1">
+                      <div className="h-3 w-28 animate-pulse rounded-full bg-slate-200" />
+                      <div className="h-3 w-4/5 animate-pulse rounded-full bg-slate-100" />
+                      <div className="h-3 w-2/5 animate-pulse rounded-full bg-slate-100" />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : posts.length === 0 ? (
+              <div className="rounded-2xl bg-white px-6 py-14 text-center shadow-sm ring-1 ring-slate-200/70">
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-indigo-50 text-2xl">
+                  ✍️
+                </div>
+                <p className="mt-4 font-semibold text-slate-800">The wall is empty</p>
+                <p className="mt-1 text-sm text-slate-500">Be the first to write something.</p>
+              </div>
+            ) : (
+              <ul className="space-y-4">
+                {posts.map((post) => (
+                  <li
+                    key={post.id}
+                    className={`group rounded-2xl bg-white p-4 shadow-sm ring-1 transition duration-700 hover:shadow-md ${
+                      freshIds.has(post.id)
+                        ? "animate-post-in ring-indigo-300 shadow-indigo-100"
+                        : "ring-slate-200/70"
+                    }`}
+                  >
+                    <div className="flex gap-3">
+                      <Avatar seed={post.id} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="font-semibold text-slate-900">{AUTHOR_NAME}</span>
+                          <time
+                            dateTime={post.created_at}
+                            title={now ? new Date(post.created_at).toLocaleString() : undefined}
+                            className="text-xs text-slate-400"
+                          >
+                            {timeAgo(post.created_at, now)}
+                          </time>
+                        </div>
+                        {post.body && (
+                          <p className="mt-1 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-slate-700">
+                            {post.body}
+                          </p>
+                        )}
+                        {post.image_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={post.image_url}
+                            alt="Photo attached to post"
+                            loading="lazy"
+                            className="mt-3 max-h-96 w-auto max-w-full rounded-xl ring-1 ring-slate-200"
+                          />
+                        )}
+                        <div className="mt-3 flex gap-1 text-xs font-medium text-slate-400">
+                          <span className="rounded-full px-2.5 py-1 transition group-hover:bg-slate-50 hover:!bg-rose-50 hover:text-rose-500">
+                            ♥ Like
+                          </span>
+                          <span className="rounded-full px-2.5 py-1 transition group-hover:bg-slate-50 hover:!bg-indigo-50 hover:text-indigo-500">
+                            💬 Comment
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </main>
 
-      <footer className="mx-auto max-w-[980px] border-t border-[#ccc] px-4 py-3 text-[11px] text-[#808080]">
-        A 2008-style wall · Next.js + Supabase
+      <footer className="pb-8 text-center text-xs text-slate-400">
+        thewall · a 2008 throwback built with Next.js &amp; Supabase
       </footer>
     </div>
   );
