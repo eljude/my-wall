@@ -320,7 +320,7 @@ export default function Wall() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_120%,rgba(255,255,255,0.25),transparent_45%),radial-gradient(circle_at_85%_-10%,rgba(255,255,255,0.2),transparent_40%)]" />
           </div>
           <div className="flex flex-col gap-4 px-6 pb-5 sm:flex-row sm:items-end">
-            <div className="-mt-12 h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-sky-300 to-indigo-500 shadow-lg ring-4 ring-white sm:h-28 sm:w-28">
+            <div className="relative z-10 -mt-12 h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-sky-300 to-indigo-500 shadow-lg ring-4 ring-white sm:h-28 sm:w-28">
               <svg viewBox="0 0 40 40" className="h-full w-full">
                 <circle cx="20" cy="15.5" r="7" fill="white" fillOpacity="0.92" />
                 <path d="M5 40c0-9.5 6.7-15 15-15s15 5.5 15 15z" fill="white" fillOpacity="0.92" />
