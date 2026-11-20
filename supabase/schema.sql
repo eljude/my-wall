@@ -4,6 +4,8 @@
 create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid,
+  author_name text check (char_length(author_name) <= 40),
+  author_avatar_url text,
   body text check (char_length(body) <= 280),
   image_url text,
   created_at timestamptz not null default now(),
