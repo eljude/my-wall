@@ -11,7 +11,7 @@ Visitors type a message, press **Share**, and the post is saved in Supabase. The
 - Feed sorted newest first, loaded from Supabase
 - Live updates via Supabase Realtime, so posts from other visitors appear without a refresh
 - Photo upload to Supabase Storage (bonus)
-- Wall owner name and photo shown on the profile header and on every post
+- Wall owner name and photo in the profile header; visitors can add an optional name to their posts (defaults to "Guest", saved in the `author_name` column)
 - Loading skeletons, error messages, a character counter and a responsive layout
 - Ctrl/Cmd + Enter shares a post
 

@@ -11,6 +11,25 @@ import {
 
 const OWNER_NAME = "Ela";
 const OWNER_PHOTO = "/ela.jpg";
+const DEFAULT_AUTHOR = "Guest";
+const MAX_NAME_LENGTH = 40;
+const NAME_STORAGE_KEY = "wall-author-name";
+
+const AVATAR_GRADIENTS = [
+  "from-sky-400 to-indigo-500",
+  "from-rose-400 to-orange-400",
+  "from-emerald-400 to-teal-500",
+  "from-violet-400 to-fuchsia-500",
+  "from-amber-400 to-pink-500",
+  "from-cyan-400 to-blue-500",
+];
+
+// Same name, same colour: makes each visitor recognisable in the feed.
+function gradientFor(name: string) {
+  let h = 0;
+  for (const ch of name.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return AVATAR_GRADIENTS[h % AVATAR_GRADIENTS.length];
+}
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -60,14 +79,26 @@ function timeAgo(iso: string, now: number) {
   });
 }
 
-function Avatar({ src, size = "h-11 w-11" }: { src: string; size?: string }) {
+function Avatar({ name }: { name: string }) {
+  const initial = name.trim().charAt(0).toUpperCase();
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt=""
-      className={`${size} shrink-0 rounded-full bg-slate-100 object-cover ring-2 ring-white`}
-    />
+    <div
+      className={`grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br ${gradientFor(name)} text-lg font-bold text-white ring-2 ring-white`}
+      aria-hidden="true"
+    >
+      {name === DEFAULT_AUTHOR || !initial ? (
+        <svg viewBox="0 0 40 40" className="h-full w-full">
+          <circle cx="20" cy="16" r="7" fill="white" fillOpacity="0.9" />
+          <path
+            d="M6 40c0-9 6.3-14.5 14-14.5S34 31 34 40z"
+            fill="white"
+            fillOpacity="0.9"
+          />
+        </svg>
+      ) : (
+        initial
+      )}
+    </div>
   );
 }
 
@@ -126,6 +157,7 @@ export default function Wall() {
     isSupabaseConfigured ? [] : SAMPLE_POSTS,
   );
   const [message, setMessage] = useState("");
+  const [authorName, setAuthorName] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(isSupabaseConfigured);
@@ -194,6 +226,29 @@ export default function Wall() {
       client.removeChannel(channel);
     };
   }, [markFresh]);
+
+  // Remember the visitor's name between visits (this browser only)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        setAuthorName(localStorage.getItem(NAME_STORAGE_KEY) ?? "");
+      } catch {
+        // storage blocked: start blank
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  function changeAuthorName(value: string) {
+    setAuthorName(value);
+    try {
+      localStorage.setItem(NAME_STORAGE_KEY, value);
+    } catch {
+      // storage blocked: name just won't be remembered
+    }
+  }
+
+  const displayAuthor = authorName.trim() || DEFAULT_AUTHOR;
 
   // Keep "x minutes ago" labels current
   useEffect(() => {
@@ -265,7 +320,7 @@ export default function Wall() {
       const base = { body: trimmed || null, image_url };
       const withAuthor = {
         ...base,
-        author_name: OWNER_NAME,
+        author_name: displayAuthor,
       };
       let { data, error: insertError } = await supabase
         .from("posts")
@@ -484,8 +539,21 @@ export default function Wall() {
               className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 transition focus-within:shadow-md focus-within:ring-indigo-300"
             >
               <div className="flex gap-3">
-                <Avatar src={OWNER_PHOTO} />
+                <Avatar name={displayAuthor} />
                 <div className="min-w-0 flex-1">
+                  <label htmlFor="author" className="sr-only">
+                    Your name (optional)
+                  </label>
+                  <input
+                    id="author"
+                    value={authorName}
+                    onChange={(e) => changeAuthorName(e.target.value)}
+                    placeholder="Your name (optional)"
+                    maxLength={MAX_NAME_LENGTH}
+                    autoComplete="nickname"
+                    disabled={!isSupabaseConfigured}
+                    className="w-full max-w-[240px] rounded-lg bg-slate-50 px-2.5 py-1.5 text-sm font-semibold text-slate-900 outline-none ring-1 ring-slate-200 transition placeholder:font-normal placeholder:text-slate-400 focus:bg-white focus:ring-indigo-300 disabled:cursor-not-allowed"
+                  />
                   <label htmlFor="message" className="sr-only">
                     Write something
                   </label>
@@ -498,7 +566,7 @@ export default function Wall() {
                       if (e.key === "Enter" && (e.ctrlKey || e.metaKey))
                         handleShare();
                     }}
-                    placeholder="What's on your mind?"
+                    placeholder={`Write something on ${OWNER_NAME}'s wall…`}
                     maxLength={MAX_LENGTH}
                     rows={2}
                     disabled={!isSupabaseConfigured}
@@ -649,11 +717,11 @@ export default function Wall() {
                     }`}
                   >
                     <div className="flex gap-3">
-                      <Avatar src={OWNER_PHOTO} />
+                      <Avatar name={post.author_name || DEFAULT_AUTHOR} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
                           <span className="font-semibold text-slate-900">
-                            {post.author_name || OWNER_NAME}
+                            {post.author_name || DEFAULT_AUTHOR}
                           </span>
                           <time
                             dateTime={post.created_at}
