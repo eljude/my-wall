@@ -882,14 +882,6 @@ export default function Wall() {
                             className="mt-3 max-h-96 w-auto max-w-full rounded-xl ring-1 ring-slate-200"
                           />
                         )}
-                        <div className="mt-3 flex gap-1 text-xs font-medium text-slate-400">
-                          <span className="rounded-full px-2.5 py-1 transition group-hover:bg-slate-50 hover:!bg-rose-50 hover:text-rose-500">
-                            ♥ Like
-                          </span>
-                          <span className="rounded-full px-2.5 py-1 transition group-hover:bg-slate-50 hover:!bg-indigo-50 hover:text-indigo-500">
-                            💬 Comment
-                          </span>
-                        </div>
                       </div>
                     </div>
                   </li>
