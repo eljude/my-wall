@@ -423,25 +423,41 @@ export default function Wall() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_120%,rgba(255,255,255,0.25),transparent_45%),radial-gradient(circle_at_85%_-10%,rgba(255,255,255,0.2),transparent_40%)]" />
           </div>
           <div className="flex flex-col gap-4 px-6 pb-5 sm:flex-row sm:items-end">
-            <div className="relative z-10 -mt-12 h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-sky-300 to-indigo-500 shadow-lg ring-4 ring-white sm:h-28 sm:w-28">
-              <svg viewBox="0 0 40 40" className="h-full w-full">
-                <circle
-                  cx="20"
-                  cy="15.5"
-                  r="7"
-                  fill="white"
-                  fillOpacity="0.92"
-                />
-                <path
-                  d="M5 40c0-9.5 6.7-15 15-15s15 5.5 15 15z"
-                  fill="white"
-                  fillOpacity="0.92"
-                />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                The Wall
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Change profile picture"
+              className="group relative z-10 -mt-12 h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-sky-300 to-indigo-500 shadow-lg ring-4 ring-white sm:h-28 sm:w-28"
+            >
+              {isPreset(profile.avatarUrl) ? (
+                <PresetFace id={profile.avatarUrl} className="h-full w-full" />
+              ) : profile.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <svg viewBox="0 0 40 40" className="h-full w-full" aria-hidden="true">
+                  <circle cx="20" cy="15.5" r="7" fill="white" fillOpacity="0.92" />
+                  <path d="M5 40c0-9.5 6.7-15 15-15s15 5.5 15 15z" fill="white" fillOpacity="0.92" />
+                </svg>
+              )}
+              <span className="absolute inset-0 grid place-items-center bg-slate-900/45 text-xs font-semibold text-white opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
+                Edit
+              </span>
+            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+                <span className="truncate">{profile.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  aria-label="Edit profile"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-indigo-500"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                  </svg>
+                </button>
               </h1>
               <p className="text-sm text-slate-500">
                 Leave a note. Everyone sees it instantly — just like 2008.
