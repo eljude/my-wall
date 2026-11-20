@@ -30,12 +30,6 @@ const ABOUT = [
   { icon: "🏠", label: "Hometown", value: "Springfield", tint: "bg-sky-50" },
   { icon: "🎂", label: "Birthday", value: "April 1", tint: "bg-rose-50" },
   {
-    icon: "💬",
-    label: "Relationship status",
-    value: "It's complicated",
-    tint: "bg-amber-50",
-  },
-  {
     icon: "🎧",
     label: "Currently listening to",
     value: "Viva la Vida",
