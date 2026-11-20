@@ -15,6 +15,8 @@ export type Post = {
   user_id: string | null;
   body: string | null;
   image_url: string | null;
+  author_name?: string | null;
+  author_avatar_url?: string | null;
   created_at: string;
 };
 

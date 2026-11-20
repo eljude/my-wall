@@ -8,8 +8,10 @@ import {
   supabase,
   type Post,
 } from "@/lib/supabase";
+import { DEFAULT_NAME, useProfile } from "@/lib/profile";
+import ProfileSettings from "@/components/ProfileSettings";
+import { PresetFace, isPreset } from "@/components/PresetAvatars";
 
-const AUTHOR_NAME = "Guest";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 // Shown only when Supabase keys are missing, so the layout can be previewed locally.
@@ -54,7 +56,10 @@ function gradientFor(id: string) {
 
 function timeAgo(iso: string, now: number) {
   if (!now) return "";
-  const seconds = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000));
+  const seconds = Math.max(
+    0,
+    Math.floor((now - new Date(iso).getTime()) / 1000),
+  );
   if (seconds < 10) return "just now";
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
@@ -70,7 +75,32 @@ function timeAgo(iso: string, now: number) {
   });
 }
 
-function Avatar({ seed, size = "h-11 w-11" }: { seed: string; size?: string }) {
+function Avatar({
+  seed,
+  src,
+  size = "h-11 w-11",
+}: {
+  seed: string;
+  src?: string | null;
+  size?: string;
+}) {
+  if (isPreset(src)) {
+    return (
+      <div className={`${size} shrink-0 overflow-hidden rounded-full ring-2 ring-white`}>
+        <PresetFace id={src} className="h-full w-full" />
+      </div>
+    );
+  }
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt=""
+        className={`${size} shrink-0 rounded-full object-cover ring-2 ring-white`}
+      />
+    );
+  }
   return (
     <div
       className={`${size} shrink-0 overflow-hidden rounded-full bg-gradient-to-br ${gradientFor(seed)} ring-2 ring-white`}
@@ -78,7 +108,11 @@ function Avatar({ seed, size = "h-11 w-11" }: { seed: string; size?: string }) {
     >
       <svg viewBox="0 0 40 40" className="h-full w-full">
         <circle cx="20" cy="16" r="7" fill="white" fillOpacity="0.9" />
-        <path d="M6 40c0-9 6.3-14.5 14-14.5S34 31 34 40z" fill="white" fillOpacity="0.9" />
+        <path
+          d="M6 40c0-9 6.3-14.5 14-14.5S34 31 34 40z"
+          fill="white"
+          fillOpacity="0.9"
+        />
       </svg>
     </div>
   );
@@ -89,11 +123,19 @@ function CharRing({ count }: { count: number }) {
   const pct = Math.min(count / MAX_LENGTH, 1);
   const r = 9;
   const c = 2 * Math.PI * r;
-  const color = remaining < 0 ? "#e11d48" : remaining <= 20 ? "#f59e0b" : "#4f46e5";
+  const color =
+    remaining < 0 ? "#e11d48" : remaining <= 20 ? "#f59e0b" : "#4f46e5";
   return (
     <div className="flex items-center gap-2" aria-live="polite">
       <svg width="24" height="24" viewBox="0 0 24 24" className="-rotate-90">
-        <circle cx="12" cy="12" r={r} fill="none" stroke="#e2e8f0" strokeWidth="2.5" />
+        <circle
+          cx="12"
+          cy="12"
+          r={r}
+          fill="none"
+          stroke="#e2e8f0"
+          strokeWidth="2.5"
+        />
         <circle
           cx="12"
           cy="12"
@@ -121,12 +163,15 @@ function CharRing({ count }: { count: number }) {
 function mergePost(list: Post[], post: Post) {
   if (list.some((p) => p.id === post.id)) return list;
   return [post, ...list].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 }
 
 export default function Wall() {
-  const [posts, setPosts] = useState<Post[]>(isSupabaseConfigured ? [] : SAMPLE_POSTS);
+  const [posts, setPosts] = useState<Post[]>(
+    isSupabaseConfigured ? [] : SAMPLE_POSTS,
+  );
   const [message, setMessage] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -136,13 +181,19 @@ export default function Wall() {
   const [live, setLive] = useState(false);
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const [now, setNow] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const profile = useProfile();
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const fileInput = useRef<HTMLInputElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
 
   const trimmed = message.trim();
   const remaining = MAX_LENGTH - message.length;
   const canShare =
-    isSupabaseConfigured && (trimmed.length > 0 || image !== null) && remaining >= 0 && !sharing;
+    isSupabaseConfigured &&
+    (trimmed.length > 0 || image !== null) &&
+    remaining >= 0 &&
+    !sharing;
 
   const markFresh = useCallback((id: string) => {
     setFreshIds((s) => new Set(s).add(id));
@@ -255,15 +306,31 @@ export default function Wall() {
         const { error: uploadError } = await supabase.storage
           .from(IMAGE_BUCKET)
           .upload(path, image, { contentType: image.type });
-        if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`);
-        image_url = supabase.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+        if (uploadError)
+          throw new Error(`Photo upload failed: ${uploadError.message}`);
+        image_url = supabase.storage.from(IMAGE_BUCKET).getPublicUrl(path)
+          .data.publicUrl;
       }
 
-      const { data, error: insertError } = await supabase
+      const base = { body: trimmed || null, image_url };
+      const withAuthor = {
+        ...base,
+        author_name: profile.name,
+        author_avatar_url: profile.avatarUrl,
+      };
+      let { data, error: insertError } = await supabase
         .from("posts")
-        .insert({ body: trimmed || null, image_url })
+        .insert(withAuthor)
         .select()
         .single();
+      // Database not migrated for author columns yet: post without them.
+      if (insertError?.code === "PGRST204") {
+        ({ data, error: insertError } = await supabase
+          .from("posts")
+          .insert(base)
+          .select()
+          .single());
+      }
       if (insertError) throw new Error(insertError.message);
 
       setNow(Date.now());
@@ -272,7 +339,9 @@ export default function Wall() {
       setMessage("");
       clearImage();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
+      setError(
+        err instanceof Error ? err.message : "Something went wrong. Try again.",
+      );
     } finally {
       setSharing(false);
     }
@@ -293,25 +362,59 @@ export default function Wall() {
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-[#3b5998] to-indigo-500 text-sm font-black text-white shadow-md shadow-indigo-500/30">
               w
             </span>
-            <span className="text-lg font-bold tracking-tight text-slate-900">thewall</span>
-          </div>
-          {isSupabaseConfigured && (
-            <span className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 shadow-sm ring-1 ring-slate-200">
-              <span className="relative flex h-2 w-2">
-                {live && (
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                )}
-                <span
-                  className={`relative inline-flex h-2 w-2 rounded-full ${
-                    live ? "bg-emerald-500" : "bg-slate-300"
-                  }`}
-                />
-              </span>
-              {live ? "Live" : "Connecting"}
+            <span className="text-lg font-bold tracking-tight text-slate-900">
+              thewall
             </span>
-          )}
+          </div>
+          <div className="flex items-center gap-2">
+            {isSupabaseConfigured && (
+              <span className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 shadow-sm ring-1 ring-slate-200">
+                <span className="relative flex h-2 w-2">
+                  {live && (
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  )}
+                  <span
+                    className={`relative inline-flex h-2 w-2 rounded-full ${
+                      live ? "bg-emerald-500" : "bg-slate-300"
+                    }`}
+                  />
+                </span>
+                {live ? "Live" : "Connecting"}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Edit profile"
+              className="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-300"
+            >
+              <Avatar seed="me" src={profile.avatarUrl} size="h-7 w-7" />
+              <span className="hidden max-w-[120px] truncate sm:inline">
+                {profile.name}
+              </span>
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-slate-400"
+                aria-hidden="true"
+              >
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </div>
         </div>
       </header>
+
+      {settingsOpen && (
+        <ProfileSettings profile={profile} onClose={closeSettings} />
+      )}
 
       <main className="relative mx-auto max-w-5xl px-4 pb-16 pt-6">
         {/* Cover + profile */}
@@ -322,12 +425,24 @@ export default function Wall() {
           <div className="flex flex-col gap-4 px-6 pb-5 sm:flex-row sm:items-end">
             <div className="relative z-10 -mt-12 h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-sky-300 to-indigo-500 shadow-lg ring-4 ring-white sm:h-28 sm:w-28">
               <svg viewBox="0 0 40 40" className="h-full w-full">
-                <circle cx="20" cy="15.5" r="7" fill="white" fillOpacity="0.92" />
-                <path d="M5 40c0-9.5 6.7-15 15-15s15 5.5 15 15z" fill="white" fillOpacity="0.92" />
+                <circle
+                  cx="20"
+                  cy="15.5"
+                  r="7"
+                  fill="white"
+                  fillOpacity="0.92"
+                />
+                <path
+                  d="M5 40c0-9.5 6.7-15 15-15s15 5.5 15 15z"
+                  fill="white"
+                  fillOpacity="0.92"
+                />
               </svg>
             </div>
             <div className="flex-1">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">The Wall</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                The Wall
+              </h1>
               <p className="text-sm text-slate-500">
                 Leave a note. Everyone sees it instantly — just like 2008.
               </p>
@@ -362,7 +477,15 @@ export default function Wall() {
               <dl className="mt-3 space-y-3 text-sm">
                 <div className="flex items-center gap-3">
                   <span className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-50 text-indigo-500">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
                       <circle cx="12" cy="12" r="10" />
                       <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
                     </svg>
@@ -374,18 +497,36 @@ export default function Wall() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="grid h-8 w-8 place-items-center rounded-lg bg-sky-50 text-sky-500">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
                       <path d="m16 18 6-6-6-6M8 6l-6 6 6 6" />
                     </svg>
                   </span>
                   <div>
                     <dt className="text-xs text-slate-400">Built with</dt>
-                    <dd className="text-slate-700">Next.js · React · Supabase</dd>
+                    <dd className="text-slate-700">
+                      Next.js · React · Supabase
+                    </dd>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-500">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
                       <path d="M13 2 3 14h9l-1 8 10-12h-9z" />
                     </svg>
                   </span>
@@ -397,8 +538,15 @@ export default function Wall() {
               </dl>
             </div>
             <p className="px-2 text-xs text-slate-400">
-              Tip: press <kbd className="rounded border border-slate-300 bg-white px-1 font-sans">Ctrl</kbd>{" "}
-              + <kbd className="rounded border border-slate-300 bg-white px-1 font-sans">Enter</kbd> to share.
+              Tip: press{" "}
+              <kbd className="rounded border border-slate-300 bg-white px-1 font-sans">
+                Ctrl
+              </kbd>{" "}
+              +{" "}
+              <kbd className="rounded border border-slate-300 bg-white px-1 font-sans">
+                Enter
+              </kbd>{" "}
+              to share.
             </p>
           </aside>
 
@@ -407,9 +555,14 @@ export default function Wall() {
             {!isSupabaseConfigured && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <strong className="font-semibold">Preview mode.</strong> Add{" "}
-                <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-                <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code> to
-                enable posting. The posts below are samples.
+                <code className="rounded bg-amber-100 px-1">
+                  NEXT_PUBLIC_SUPABASE_URL
+                </code>{" "}
+                and{" "}
+                <code className="rounded bg-amber-100 px-1">
+                  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+                </code>{" "}
+                to enable posting. The posts below are samples.
               </div>
             )}
 
@@ -419,7 +572,15 @@ export default function Wall() {
               className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 transition focus-within:shadow-md focus-within:ring-indigo-300"
             >
               <div className="flex gap-3">
-                <Avatar seed="me" />
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  aria-label="Edit profile"
+                  title={`Posting as ${profile.name}`}
+                  className="h-11 shrink-0 rounded-full transition hover:opacity-80"
+                >
+                  <Avatar seed="me" src={profile.avatarUrl} />
+                </button>
                 <div className="min-w-0 flex-1">
                   <label htmlFor="message" className="sr-only">
                     Write something
@@ -430,7 +591,8 @@ export default function Wall() {
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleShare();
+                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey))
+                        handleShare();
                     }}
                     placeholder="What's on your mind?"
                     maxLength={MAX_LENGTH}
@@ -453,8 +615,18 @@ export default function Wall() {
                         aria-label="Remove photo"
                         className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-slate-900/70 text-white backdrop-blur transition hover:bg-slate-900"
                       >
-                        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-                          <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M2 2l8 8M10 2l-8 8"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                          />
                         </svg>
                       </button>
                     </div>
@@ -469,7 +641,18 @@ export default function Wall() {
                   disabled={!isSupabaseConfigured || sharing}
                   className="flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-600 disabled:pointer-events-none disabled:opacity-40"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-emerald-500"
+                    aria-hidden="true"
+                  >
                     <rect x="3" y="3" width="18" height="18" rx="3" />
                     <circle cx="9" cy="9" r="2" />
                     <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
@@ -525,7 +708,10 @@ export default function Wall() {
             {loading ? (
               <ul aria-busy="true" className="space-y-4">
                 {[0, 1, 2].map((i) => (
-                  <li key={i} className="flex gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+                  <li
+                    key={i}
+                    className="flex gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70"
+                  >
                     <div className="h-11 w-11 animate-pulse rounded-full bg-slate-200" />
                     <div className="flex-1 space-y-2.5 pt-1">
                       <div className="h-3 w-28 animate-pulse rounded-full bg-slate-200" />
@@ -540,8 +726,12 @@ export default function Wall() {
                 <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-indigo-50 text-2xl">
                   ✍️
                 </div>
-                <p className="mt-4 font-semibold text-slate-800">The wall is empty</p>
-                <p className="mt-1 text-sm text-slate-500">Be the first to write something.</p>
+                <p className="mt-4 font-semibold text-slate-800">
+                  The wall is empty
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Be the first to write something.
+                </p>
               </div>
             ) : (
               <ul className="space-y-4">
@@ -555,13 +745,19 @@ export default function Wall() {
                     }`}
                   >
                     <div className="flex gap-3">
-                      <Avatar seed={post.id} />
+                      <Avatar seed={post.id} src={post.author_avatar_url} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
-                          <span className="font-semibold text-slate-900">{AUTHOR_NAME}</span>
+                          <span className="font-semibold text-slate-900">
+                            {post.author_name || DEFAULT_NAME}
+                          </span>
                           <time
                             dateTime={post.created_at}
-                            title={now ? new Date(post.created_at).toLocaleString() : undefined}
+                            title={
+                              now
+                                ? new Date(post.created_at).toLocaleString()
+                                : undefined
+                            }
                             className="text-xs text-slate-400"
                           >
                             {timeAgo(post.created_at, now)}
