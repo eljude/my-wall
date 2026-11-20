@@ -11,7 +11,7 @@ Visitors type a message, press **Share**, and the post is saved in Supabase. The
 - Feed sorted newest first, loaded from Supabase
 - Live updates via Supabase Realtime, so posts from other visitors appear without a refresh
 - Photo upload to Supabase Storage (bonus)
-- Profile settings: each visitor picks a display name and either uploads a picture or chooses one of 8 illustrated animal faces (saved in their browser, shown on their posts)
+- Wall owner name and photo shown on the profile header and on every post
 - Loading skeletons, error messages, a character counter and a responsive layout
 - Ctrl/Cmd + Enter shares a post
 
@@ -19,7 +19,7 @@ Visitors type a message, press **Share**, and the post is saved in Supabase. The
 
 1. Create a Supabase project, open the **SQL Editor**, and run [`supabase/schema.sql`](supabase/schema.sql).
    It creates the `posts` table, row-level-security policies for anonymous read/insert, the Realtime publication, and the `post-images` storage bucket.
-   Then run [`supabase/002_author_profile.sql`](supabase/002_author_profile.sql) to add the author name and picture columns.
+   Then run [`supabase/002_author_profile.sql`](supabase/002_author_profile.sql) (only if your `posts` table was created before the `author_name` column existed).
 2. Copy `.env.example` to `.env.local` and fill in the values from **Project Settings → API**:
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co

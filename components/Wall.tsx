@@ -8,9 +8,9 @@ import {
   supabase,
   type Post,
 } from "@/lib/supabase";
-import { DEFAULT_NAME, useProfile } from "@/lib/profile";
-import ProfileSettings from "@/components/ProfileSettings";
-import { PresetFace, isPreset } from "@/components/PresetAvatars";
+
+const OWNER_NAME = "Ela";
+const OWNER_PHOTO = "/ela.jpg";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -39,21 +39,6 @@ const SAMPLE_POSTS: Post[] = [
   },
 ];
 
-const AVATAR_GRADIENTS = [
-  "from-sky-400 to-indigo-500",
-  "from-rose-400 to-orange-400",
-  "from-emerald-400 to-teal-500",
-  "from-violet-400 to-fuchsia-500",
-  "from-amber-400 to-pink-500",
-  "from-cyan-400 to-blue-500",
-];
-
-function gradientFor(id: string) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return AVATAR_GRADIENTS[h % AVATAR_GRADIENTS.length];
-}
-
 function timeAgo(iso: string, now: number) {
   if (!now) return "";
   const seconds = Math.max(
@@ -75,46 +60,14 @@ function timeAgo(iso: string, now: number) {
   });
 }
 
-function Avatar({
-  seed,
-  src,
-  size = "h-11 w-11",
-}: {
-  seed: string;
-  src?: string | null;
-  size?: string;
-}) {
-  if (isPreset(src)) {
-    return (
-      <div className={`${size} shrink-0 overflow-hidden rounded-full ring-2 ring-white`}>
-        <PresetFace id={src} className="h-full w-full" />
-      </div>
-    );
-  }
-  if (src) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={src}
-        alt=""
-        className={`${size} shrink-0 rounded-full object-cover ring-2 ring-white`}
-      />
-    );
-  }
+function Avatar({ src, size = "h-11 w-11" }: { src: string; size?: string }) {
   return (
-    <div
-      className={`${size} shrink-0 overflow-hidden rounded-full bg-gradient-to-br ${gradientFor(seed)} ring-2 ring-white`}
-      aria-hidden="true"
-    >
-      <svg viewBox="0 0 40 40" className="h-full w-full">
-        <circle cx="20" cy="16" r="7" fill="white" fillOpacity="0.9" />
-        <path
-          d="M6 40c0-9 6.3-14.5 14-14.5S34 31 34 40z"
-          fill="white"
-          fillOpacity="0.9"
-        />
-      </svg>
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      className={`${size} shrink-0 rounded-full bg-slate-100 object-cover ring-2 ring-white`}
+    />
   );
 }
 
@@ -181,9 +134,6 @@ export default function Wall() {
   const [live, setLive] = useState(false);
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const [now, setNow] = useState(0);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const profile = useProfile();
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const fileInput = useRef<HTMLInputElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
 
@@ -315,8 +265,7 @@ export default function Wall() {
       const base = { body: trimmed || null, image_url };
       const withAuthor = {
         ...base,
-        author_name: profile.name,
-        author_avatar_url: profile.avatarUrl,
+        author_name: OWNER_NAME,
       };
       let { data, error: insertError } = await supabase
         .from("posts")
@@ -382,39 +331,9 @@ export default function Wall() {
                 {live ? "Live" : "Connecting"}
               </span>
             )}
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="Edit profile"
-              className="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-300"
-            >
-              <Avatar seed="me" src={profile.avatarUrl} size="h-7 w-7" />
-              <span className="hidden max-w-[120px] truncate sm:inline">
-                {profile.name}
-              </span>
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-slate-400"
-                aria-hidden="true"
-              >
-                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </button>
           </div>
         </div>
       </header>
-
-      {settingsOpen && (
-        <ProfileSettings profile={profile} onClose={closeSettings} />
-      )}
 
       <main className="relative mx-auto max-w-5xl px-4 pb-16 pt-6">
         {/* Cover + profile */}
@@ -423,44 +342,21 @@ export default function Wall() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_120%,rgba(255,255,255,0.25),transparent_45%),radial-gradient(circle_at_85%_-10%,rgba(255,255,255,0.2),transparent_40%)]" />
           </div>
           <div className="flex flex-col gap-4 px-6 pb-5 sm:flex-row sm:items-end">
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="Change profile picture"
-              className="group relative z-10 -mt-12 h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-sky-300 to-indigo-500 shadow-lg ring-4 ring-white sm:h-28 sm:w-28"
-            >
-              {isPreset(profile.avatarUrl) ? (
-                <PresetFace id={profile.avatarUrl} className="h-full w-full" />
-              ) : profile.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <svg viewBox="0 0 40 40" className="h-full w-full" aria-hidden="true">
-                  <circle cx="20" cy="15.5" r="7" fill="white" fillOpacity="0.92" />
-                  <path d="M5 40c0-9.5 6.7-15 15-15s15 5.5 15 15z" fill="white" fillOpacity="0.92" />
-                </svg>
-              )}
-              <span className="absolute inset-0 grid place-items-center bg-slate-900/45 text-xs font-semibold text-white opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
-                Edit
-              </span>
-            </button>
+            <div className="relative z-10 -mt-12 h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 shadow-lg ring-4 ring-white sm:h-28 sm:w-28">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={OWNER_PHOTO}
+                alt={`${OWNER_NAME}'s profile picture`}
+                className="h-full w-full object-cover"
+              />
+            </div>
             <div className="min-w-0 flex-1">
-              <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
-                <span className="truncate">{profile.name}</span>
-                <button
-                  type="button"
-                  onClick={() => setSettingsOpen(true)}
-                  aria-label="Edit profile"
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-indigo-500"
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M12 20h9" />
-                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-                  </svg>
-                </button>
+              <h1 className="truncate text-2xl font-bold tracking-tight text-slate-900">
+                {OWNER_NAME}
               </h1>
               <p className="text-sm text-slate-500">
-                Leave a note. Everyone sees it instantly — just like 2008.
+                Write something on {OWNER_NAME}&apos;s wall. Everyone sees it
+                instantly — just like 2008.
               </p>
             </div>
             <div className="flex gap-6 text-center">
@@ -588,15 +484,7 @@ export default function Wall() {
               className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 transition focus-within:shadow-md focus-within:ring-indigo-300"
             >
               <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSettingsOpen(true)}
-                  aria-label="Edit profile"
-                  title={`Posting as ${profile.name}`}
-                  className="h-11 shrink-0 rounded-full transition hover:opacity-80"
-                >
-                  <Avatar seed="me" src={profile.avatarUrl} />
-                </button>
+                <Avatar src={OWNER_PHOTO} />
                 <div className="min-w-0 flex-1">
                   <label htmlFor="message" className="sr-only">
                     Write something
@@ -761,11 +649,11 @@ export default function Wall() {
                     }`}
                   >
                     <div className="flex gap-3">
-                      <Avatar seed={post.id} src={post.author_avatar_url} />
+                      <Avatar src={OWNER_PHOTO} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
                           <span className="font-semibold text-slate-900">
-                            {post.author_name || DEFAULT_NAME}
+                            {post.author_name || OWNER_NAME}
                           </span>
                           <time
                             dateTime={post.created_at}
