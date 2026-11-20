@@ -18,6 +18,36 @@ import {
 const OWNER_NAME = "Ela";
 const OWNER_PHOTO = "/ela.jpg";
 const DEFAULT_AUTHOR = "Guest";
+
+// Dummy 2008-style profile details for the sidebar.
+const ABOUT = [
+  {
+    icon: "🎓",
+    label: "Networks",
+    value: "Class of 2008",
+    tint: "bg-indigo-50",
+  },
+  { icon: "🏠", label: "Hometown", value: "Springfield", tint: "bg-sky-50" },
+  { icon: "🎂", label: "Birthday", value: "April 1", tint: "bg-rose-50" },
+  {
+    icon: "💬",
+    label: "Relationship status",
+    value: "It's complicated",
+    tint: "bg-amber-50",
+  },
+  {
+    icon: "🎧",
+    label: "Currently listening to",
+    value: "Viva la Vida",
+    tint: "bg-emerald-50",
+  },
+  {
+    icon: "⭐",
+    label: "Interests",
+    value: "Coding, coffee, Top 8 drama",
+    tint: "bg-violet-50",
+  },
+];
 const MAX_NAME_LENGTH = 40;
 const NAME_STORAGE_KEY = "wall-author-name";
 const AVATAR_STORAGE_KEY = "wall-author-avatar";
@@ -572,10 +602,6 @@ export default function Wall() {
                 </div>
                 <div className="text-xs text-slate-500">Posts</div>
               </div>
-              <div>
-                <div className="text-lg font-bold text-slate-900">280</div>
-                <div className="text-xs text-slate-500">Char limit</div>
-              </div>
             </div>
           </div>
           <nav className="flex gap-1 border-t border-slate-100 px-4 text-sm">
@@ -593,66 +619,20 @@ export default function Wall() {
             <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
               <h2 className="text-sm font-semibold text-slate-900">About</h2>
               <dl className="mt-3 space-y-3 text-sm">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-50 text-indigo-500">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
+                {ABOUT.map((item) => (
+                  <div key={item.label} className="flex items-center gap-3">
+                    <span
+                      className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-base ${item.tint}`}
                       aria-hidden="true"
                     >
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
-                    </svg>
-                  </span>
-                  <div>
-                    <dt className="text-xs text-slate-400">Network</dt>
-                    <dd className="text-slate-700">The Internet</dd>
+                      {item.icon}
+                    </span>
+                    <div className="min-w-0">
+                      <dt className="text-xs text-slate-400">{item.label}</dt>
+                      <dd className="text-slate-700">{item.value}</dd>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-sky-50 text-sky-500">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      aria-hidden="true"
-                    >
-                      <path d="m16 18 6-6-6-6M8 6l-6 6 6 6" />
-                    </svg>
-                  </span>
-                  <div>
-                    <dt className="text-xs text-slate-400">Built with</dt>
-                    <dd className="text-slate-700">
-                      Next.js · React · Supabase
-                    </dd>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-500">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      aria-hidden="true"
-                    >
-                      <path d="M13 2 3 14h9l-1 8 10-12h-9z" />
-                    </svg>
-                  </span>
-                  <div>
-                    <dt className="text-xs text-slate-400">Updates</dt>
-                    <dd className="text-slate-700">Realtime, no refresh</dd>
-                  </div>
-                </div>
+                ))}
               </dl>
             </div>
             <p className="px-2 text-xs text-slate-400">
