@@ -8,12 +8,19 @@ import {
   supabase,
   type Post,
 } from "@/lib/supabase";
+import {
+  PRESETS,
+  PRESET_PREFIX,
+  PresetFace,
+  isPreset,
+} from "@/components/PresetAvatars";
 
 const OWNER_NAME = "Ela";
 const OWNER_PHOTO = "/ela.jpg";
 const DEFAULT_AUTHOR = "Guest";
 const MAX_NAME_LENGTH = 40;
 const NAME_STORAGE_KEY = "wall-author-name";
+const AVATAR_STORAGE_KEY = "wall-author-avatar";
 
 const AVATAR_GRADIENTS = [
   "from-sky-400 to-indigo-500",
@@ -79,7 +86,21 @@ function timeAgo(iso: string, now: number) {
   });
 }
 
-function Avatar({ name }: { name: string }) {
+function Avatar({ name, avatar }: { name: string; avatar?: string | null }) {
+  // Only built-in faces are rendered, never arbitrary URLs from the database.
+  if (
+    isPreset(avatar) &&
+    PRESETS.some((p) => PRESET_PREFIX + p.id === avatar)
+  ) {
+    return (
+      <div
+        className="h-11 w-11 shrink-0 overflow-hidden rounded-full ring-2 ring-white"
+        aria-hidden="true"
+      >
+        <PresetFace id={avatar} className="h-full w-full" />
+      </div>
+    );
+  }
   const initial = name.trim().charAt(0).toUpperCase();
   return (
     <div
@@ -97,6 +118,122 @@ function Avatar({ name }: { name: string }) {
         </svg>
       ) : (
         initial
+      )}
+    </div>
+  );
+}
+
+function AvatarPicker({
+  name,
+  value,
+  onChange,
+  disabled,
+}: {
+  name: string;
+  value: string | null;
+  onChange: (value: string | null) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapper = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapper.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function pick(next: string | null) {
+    onChange(next);
+    setOpen(false);
+  }
+
+  const optionClass = (selected: boolean) =>
+    `aspect-square overflow-hidden rounded-full transition hover:scale-105 ${
+      selected
+        ? "ring-[3px] ring-indigo-500 ring-offset-2"
+        : "ring-1 ring-slate-200 hover:ring-indigo-300"
+    }`;
+
+  return (
+    <div ref={wrapper} className="relative h-11 shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={disabled}
+        aria-label="Choose your avatar"
+        aria-expanded={open}
+        title="Choose your avatar"
+        className="group relative block rounded-full transition hover:opacity-90 disabled:pointer-events-none"
+      >
+        <Avatar name={name} avatar={value} />
+        <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full bg-white text-slate-500 shadow ring-1 ring-slate-200 transition group-hover:text-indigo-500">
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+          </svg>
+        </span>
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Choose your avatar"
+          className="absolute left-0 top-14 z-30 w-64 animate-post-in rounded-2xl bg-white p-3 shadow-xl ring-1 ring-slate-200"
+        >
+          <p className="px-1 pb-2 text-xs font-semibold text-slate-500">
+            Pick your avatar
+          </p>
+          <div className="grid grid-cols-5 gap-2">
+            <button
+              type="button"
+              onClick={() => pick(null)}
+              aria-label="Use my initial"
+              aria-pressed={value === null}
+              title="Your initial"
+              className={optionClass(value === null)}
+            >
+              <span className="pointer-events-none block scale-[0.82] [&>div]:ring-0">
+                <Avatar name={name} />
+              </span>
+            </button>
+            {PRESETS.map((p) => {
+              const id = PRESET_PREFIX + p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => pick(id)}
+                  aria-label={p.label}
+                  aria-pressed={value === id}
+                  title={p.label}
+                  className={optionClass(value === id)}
+                >
+                  <PresetFace id={p.id} className="h-full w-full" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -158,6 +295,7 @@ export default function Wall() {
   );
   const [message, setMessage] = useState("");
   const [authorName, setAuthorName] = useState("");
+  const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(isSupabaseConfigured);
@@ -232,6 +370,8 @@ export default function Wall() {
     const t = setTimeout(() => {
       try {
         setAuthorName(localStorage.getItem(NAME_STORAGE_KEY) ?? "");
+        const saved = localStorage.getItem(AVATAR_STORAGE_KEY);
+        if (isPreset(saved)) setAuthorAvatar(saved);
       } catch {
         // storage blocked: start blank
       }
@@ -245,6 +385,16 @@ export default function Wall() {
       localStorage.setItem(NAME_STORAGE_KEY, value);
     } catch {
       // storage blocked: name just won't be remembered
+    }
+  }
+
+  function changeAuthorAvatar(value: string | null) {
+    setAuthorAvatar(value);
+    try {
+      if (value) localStorage.setItem(AVATAR_STORAGE_KEY, value);
+      else localStorage.removeItem(AVATAR_STORAGE_KEY);
+    } catch {
+      // storage blocked: choice just won't be remembered
     }
   }
 
@@ -321,6 +471,7 @@ export default function Wall() {
       const withAuthor = {
         ...base,
         author_name: displayAuthor,
+        author_avatar_url: authorAvatar,
       };
       let { data, error: insertError } = await supabase
         .from("posts")
@@ -539,7 +690,12 @@ export default function Wall() {
               className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 transition focus-within:shadow-md focus-within:ring-indigo-300"
             >
               <div className="flex gap-3">
-                <Avatar name={displayAuthor} />
+                <AvatarPicker
+                  name={displayAuthor}
+                  value={authorAvatar}
+                  onChange={changeAuthorAvatar}
+                  disabled={!isSupabaseConfigured}
+                />
                 <div className="min-w-0 flex-1">
                   <label htmlFor="author" className="sr-only">
                     Your name (optional)
@@ -717,7 +873,10 @@ export default function Wall() {
                     }`}
                   >
                     <div className="flex gap-3">
-                      <Avatar name={post.author_name || DEFAULT_AUTHOR} />
+                      <Avatar
+                        name={post.author_name || DEFAULT_AUTHOR}
+                        avatar={post.author_avatar_url}
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
                           <span className="font-semibold text-slate-900">
